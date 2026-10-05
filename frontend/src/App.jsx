@@ -15,6 +15,7 @@ function App() {
 
       <div className="text-center mb-8 z-10">
        <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-pink-500 to-red-500 mb-2">
+       NidanAi<br></br>
        Medical Report Simplifier
 </h1>
 <p className="text-lg text-slate-600">
