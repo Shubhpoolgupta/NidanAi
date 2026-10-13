@@ -1,12 +1,13 @@
 require("dotenv").config();
 const fs = require("fs");
-const path = require("path");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai"); // new official SDK (old @google/generative-ai is deprecated)
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_KEY);
-const model = genAI.getGenerativeModel({
-  model: "gemini-2.0-flash",
-  systemInstruction: `
+const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_KEY });
+
+// CHANGE HERE if Google retires the model: set GEMINI_MODEL in .env / Render instead of editing code.
+const MODEL = "gemini-3.8-flash";
+
+const SYSTEM_PROMPT = `
   You are an AI Medical Report Simplifier. Your job is to analyze medical reports (text or image),
   extract test names, values, and statuses, and give clear, patient-friendly explanations.
   
@@ -58,47 +59,41 @@ const model = genAI.getGenerativeModel({
   ⚠️ Guardrail / Exit Condition:
   If no valid test data is found or JSON cannot be formed, respond ONLY with:
   {"status":"unprocessed","reason":"hallucinated tests not present in input"}
-  `
-  
-  
-});
+  `;
 
+/**
+ * Sends the uploaded report (image OR pdf) to Gemini and returns parsed JSON.
+ * Always deletes the temp file afterwards.
+ */
 async function simplifyReportAI(filePath, mimetype) {
   try {
-    const isImage = mimetype.startsWith("image/");
-    let result;
+    // Images and PDFs are both sent the same way (Gemini reads both natively)
+    const base64 = fs.readFileSync(filePath).toString("base64");
 
-    if (isImage) {
-      const imageBuffer = fs.readFileSync(filePath);
-      const base64 = imageBuffer.toString("base64");
-
-      result = await model.generateContent([
+    const result = await ai.models.generateContent({
+      model: MODEL,
+      contents: [
         {
-          inlineData: { data: base64, mimeType: mimetype },
+          role: "user",
+          parts: [
+            { inlineData: { mimeType: mimetype, data: base64 } },
+            { text: "Analyze this medical report and return the JSON exactly as specified." },
+          ],
         },
-      ]);
-    } else {
-      const text = fs.readFileSync(filePath, "utf8");
-      result = await model.generateContent(text);
-    }
+      ],
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        responseMimeType: "application/json", // forces valid JSON output
+        temperature: 0.2, // lower = fewer invented values
+      },
+    });
 
-    const raw = result.response.text();
-    console.log(" Raw AI Response:", raw);
-
-    // Try to extract valid JSON
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) {
-      return { status: "unprocessed", reason: "AI did not return valid JSON" };
-    }
-
-    const json = JSON.parse(match[0]);
-    return json;
+    return JSON.parse(result.text);
   } catch (err) {
-    console.error(" AI Service Error:", err);
-    return { status: "unprocessed", reason: "AI processing error" };
+    console.error("AI Service Error:", err.message); // message only, never the report text
+    return { status: "unprocessed", reason: "AI processing error. Please try again." };
   } finally {
-    
-    fs.unlink(filePath, (e) => e && console.error("Failed to delete file:", e));
+    fs.unlink(filePath, (e) => e && console.error("Failed to delete temp file:", e.message));
   }
 }
 

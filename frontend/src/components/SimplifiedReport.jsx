@@ -1,54 +1,56 @@
-import React from "react";
+const statusColor = (status) => {
+  const s = (status || "").toLowerCase(); // handles "High", "LOW", etc.
+  if (s === "high") return "bg-red-700/30 text-red-200";
+  if (s === "low") return "bg-yellow-600/30 text-yellow-200";
+  if (s === "normal") return "bg-green-700/30 text-green-200";
+  return "bg-gray-700/30 text-gray-200"; // unknown status is NOT shown as green
+};
 
 const SimplifiedReport = ({ report }) => {
   if (!report) return null;
 
   return (
-    <div className="w-full max-w-4xl bg-gray-900 text-gray-100 p-6 rounded-xl shadow-xl mt-6">
-      <h2 className="text-2xl font-bold text-indigo-400 mb-4">
-        Simplified Report
-      </h2>
+    <div className="relative z-10 w-full max-w-4xl bg-gray-900 text-gray-100 p-6 rounded-xl shadow-xl mt-6">
+      <h2 className="text-2xl font-bold text-indigo-400 mb-4">Simplified Report</h2>
 
- 
+      {/* Summary + explanations */}
       <div className="mb-4">
-  <h3 className="font-semibold text-gray-300 mb-2">Summary:</h3>
-  <p>{report.summary}</p>
+        <h3 className="font-semibold text-gray-300 mb-2">Summary:</h3>
+        <p>{report.summary}</p>
 
+        {report.explanations && report.explanations.length > 0 && (
+          <ul className="list-disc ml-5 mt-2 space-y-1">
+            {report.explanations.map((exp, i) => (
+              <li key={i}>{exp}</li>
+            ))}
+          </ul>
+        )}
+      </div>
 
-  {report.explanation && <p className="mt-2">{report.explanation}</p>}
-
-  {report.explanations && report.explanations.length > 0 && (
-    <ul className="list-disc ml-5 mt-2 space-y-1">
-      {report.explanations.map((exp, i) => (
-        <li key={i}>{exp}</li>
-      ))}
-    </ul>
-  )}
-</div>
-
-      {/* Test Results */}
+      {/* Test results */}
       {report.tests && report.tests.length > 0 && (
         <div className="mb-4">
           <h3 className="font-semibold text-gray-300 mb-2">Test Results:</h3>
           <ul className="space-y-2">
             {report.tests.map((test, i) => (
-              <li
-                key={i}
-                className={`p-2 rounded ${
-                  test.status === "high"
-                    ? "bg-red-700/30 text-red-200"
-                    : test.status === "low"
-                    ? "bg-yellow-600/30 text-yellow-200"
-                    : "bg-green-700/30 text-green-200"
-                }`}
-              >
-                <span className="font-medium">{test.name}:</span> {test.value}{" "}
-                {test.unit} ({test.status})
+              <li key={i} className={`p-2 rounded ${statusColor(test.status)}`}>
+                <span className="font-medium">{test.name}:</span> {test.value} {test.unit} (
+                {test.status})
+                {test.ref_range && (
+                  <span className="text-xs opacity-70">
+                    {" "}
+                    · ref {test.ref_range.low}–{test.ref_range.high}
+                  </span>
+                )}
               </li>
             ))}
           </ul>
         </div>
       )}
+
+      <p className="text-xs text-gray-500 mt-4">
+        For understanding only — not a diagnosis or medical advice. Please consult your doctor.
+      </p>
     </div>
   );
 };

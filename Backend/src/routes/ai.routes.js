@@ -1,23 +1,37 @@
-const express = require('express');
-const router = express.Router(); 
-const multer = require('multer');
-const { simplifyReportAI } = require('../services/ai.service'); 
-const upload = multer({ dest: 'uploads/' });
+const express = require("express");
+const multer = require("multer");
+const { simplifyReportAI } = require("../services/ai.service");
 
-router.post('/simplify-report', upload.single('file'), async (req, res) => {
+const router = express.Router();
+
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "application/pdf"];
+
+const upload = multer({
+  dest: "uploads/",
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_TYPES.includes(file.mimetype)) return cb(null, true);
+    cb(new Error("Only JPG, PNG or PDF files are allowed"));
+  },
+});
+
+// POST /ai/simplify-report   (form-data field name: "file")
+router.post("/simplify-report", upload.single("file"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded" });
+  }
+
   try {
-    console.log("File received:", req.file); 
-    const filePath = req.file.path;
-    const mimetype = req.file.mimetype;
+    // NOTE: we deliberately do not log the report contents (private medical data)
+    const report = await simplifyReportAI(req.file.path, req.file.mimetype);
 
-    const simplifiedReport = await simplifyReportAI(filePath, mimetype);
-
-    console.log(" Simplified report:", simplifiedReport);
-
-    res.json(simplifiedReport);
+    if (report.status === "unprocessed") {
+      return res.status(422).json(report);
+    }
+    res.json(report);
   } catch (err) {
-    console.error(" Error in simplify-report:", err);
-    res.status(500).json({ error: 'Failed to process report' });
+    console.error("Error in simplify-report:", err.message);
+    res.status(500).json({ error: "Failed to process report" });
   }
 });
 
